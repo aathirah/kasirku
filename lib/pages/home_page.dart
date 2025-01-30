@@ -21,7 +21,6 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: null,
         title: Row(
           children: [
             const Padding(
@@ -55,6 +54,7 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Search Bar
             TextField(
               onChanged: (value) {
                 setState(() {
