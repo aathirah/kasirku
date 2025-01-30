@@ -1,34 +1,33 @@
-import "package:flutter/material.dart";
-import 'package:kasirku/pages/home_page.dart';
-import 'package:kasirku/pages/payment_page.dart';
-import 'package:kasirku/pages/product_page.dart';
-import 'package:kasirku/pages/profile_page.dart';
-import 'package:kasirku/pages/history_page.dart';
+import 'package:flutter/material.dart';
+import 'payment_page.dart';
+import 'home_page.dart';
+import 'product_page.dart';
+import 'profile_page.dart';
+import 'history_page.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+class CartPage extends StatefulWidget {
+  final List<Map<String, dynamic>> cartItems; // List produk dalam keranjang
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const CartPage({super.key, required this.cartItems});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.green),
-      home: const CartPage(
-        cartItems: [],
-      ),
-    );
+  State<CartPage> createState() => _CartPageState();
+}
+
+class _CartPageState extends State<CartPage> {
+  void _updateQuantity(int index, int newQty) {
+    setState(() {
+      widget.cartItems[index]['qty'] = newQty;
+    });
   }
-}
-
-class CartPage extends StatelessWidget {
-  const CartPage({super.key, required List cartItems});
 
   @override
   Widget build(BuildContext context) {
+    int totalPrice = widget.cartItems.fold(
+        0,
+        (sum, item) =>
+            sum + (item['price'] as num).toInt() * (item['qty'] as int));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -40,27 +39,58 @@ class CartPage extends StatelessWidget {
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            ItemCard(
-                image: 'assets/tshirt.png', title: 'T-shirt', price: 89000),
-            ItemCard(
-                image: 'assets/hoodie.png',
-                title: 'Hoodie Grey',
-                price: 300000),
-            ItemCard(
-                image: 'assets/shoes.png',
-                title: 'Sneaker Cream Brown',
-                price: 250000),
-            SizedBox(height: 16),
-            Divider(),
-            SizedBox(height: 16),
-            PayButton(),
-          ],
-        ),
-      ),
+      body: widget.cartItems.isEmpty
+          ? const Center(child: Text('Your cart is empty'))
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: widget.cartItems.length,
+                      itemBuilder: (context, index) {
+                        final item = widget.cartItems[index];
+                        return ItemCard(
+                          image: item['imageUrl'],
+                          title: item['name'],
+                          price: item['price']?? 0,
+                          quantity: item['qty'],
+                          onQuantityChanged: (newQty) =>
+                              _updateQuantity(index, newQty),
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        'Rp${totalPrice.toInt()}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  PayButton(
+                    onPressed: widget.cartItems.isEmpty
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const PaymentPage(),
+                              ),
+                            );
+                          },
+                  ),
+                ],
+              ),
+            ),
       bottomNavigationBar: const BottomNavBar(),
     );
   }
@@ -70,86 +100,102 @@ class ItemCard extends StatelessWidget {
   final String image;
   final String title;
   final int price;
+  final int quantity;
+  final ValueChanged<int> onQuantityChanged;
 
-  const ItemCard(
-      {super.key,
-      required this.image,
-      required this.title,
-      required this.price});
+  const ItemCard({
+    super.key,
+    required this.image,
+    required this.title,
+    required this.price,
+    required this.quantity,
+    required this.onQuantityChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8.0),
-      padding: const EdgeInsets.all(8.0),
+      padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8.0),
-        border: Border.all(color: Colors.grey.shade300),
+        color: Colors.purple.shade50,
+        borderRadius: BorderRadius.circular(12.0),
       ),
       child: Row(
         children: [
-          Image.asset(image, width: 50, height: 50, fit: BoxFit.cover),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: Image.network(
+              image,
+              width: 50,
+              height: 50,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.image, size: 50),
+            ),
+          ),
           const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text('Rp${price.toString()}',
-                  style: const TextStyle(color: Colors.grey)),
+              Text('Rp$price', style: const TextStyle(color: Colors.grey)),
             ],
           ),
           const Spacer(),
-          const QuantitySelector(),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove_circle_outline),
+                onPressed: () {
+                  if (quantity > 1) {
+                    onQuantityChanged(quantity - 1);
+                  }
+                },
+              ),
+              Text('$quantity',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () {
+                  onQuantityChanged(quantity + 1);
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class QuantitySelector extends StatelessWidget {
-  const QuantitySelector({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(Icons.remove_circle_outline),
-          onPressed: () {
-            // Implementasi logika pengurangan kuantitas
-          },
-        ),
-        const Text('1', style: TextStyle(fontWeight: FontWeight.bold)),
-        IconButton(
-          icon: const Icon(Icons.add_circle_outline),
-          onPressed: () {
-            // Implementasi logika penambahan kuantitas
-          },
-        ),
-      ],
-    );
-  }
-}
-
 class PayButton extends StatelessWidget {
-  const PayButton({super.key});
+  final VoidCallback? onPressed;
+
+  const PayButton({super.key, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PaymentPage()),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color:
+              onPressed != null ? Colors.green : Colors.green.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(25),
         ),
-        child: const Text('Checkout', style: TextStyle(fontSize: 16)),
+        child: Center(
+          child: Text(
+            'Checkout',
+            style: TextStyle(
+              fontSize: 16,
+              color: onPressed != null ? Colors.white : Colors.purple.shade200,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -167,38 +213,30 @@ class BottomNavBar extends StatelessWidget {
       onTap: (index) {
         switch (index) {
           case 0:
-            // Beranda
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HomePage()),
             );
             break;
           case 1:
-            // Keranjang
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                  builder: (context) => const CartPage(
-                        cartItems: [],
-                      )),
+              MaterialPageRoute(builder: (context) => CartPage(cartItems: [])),
             );
             break;
           case 2:
-            // Produk
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const ProductPage()),
             );
             break;
           case 3:
-            // Riwayat
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const HistoryPage()),
             );
             break;
           case 4:
-            // Profile
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const ProfilePage()),
