@@ -34,7 +34,10 @@ class MyApp extends StatelessWidget {
         '/product': (context) => const ProductPage(),
         '/history': (context) => const HistoryPage(),
         '/profile': (context) => const ProfilePage(),
-        '/payment': (context) => const PaymentPage(),
+        '/payment': (context) => PaymentPage(
+              cartItems: [], // Pastikan daftar produk dikirim
+              totalPrice: 0, // Default total harga
+            ),
       },
     );
   }

@@ -16,7 +16,7 @@ class _SplashPageState extends State<SplashPage> {
     super.initState();
 
     // Mengarahkan ke halaman LoginPage setelah 5 detik
-    Timer(const Duration(seconds: 5), () {
+    Timer(const Duration(seconds: 9), () {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (context) => const LoginPage()));
     });

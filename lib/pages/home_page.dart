@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'cart_page.dart';
+import 'history_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,7 +14,60 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String selectedCategory = 'All';
   String searchQuery = '';
-  List<Map<String, dynamic>> cartItems = []; // Menyimpan item keranjang
+  List<Map<String, dynamic>> cartItems = [];
+  int _selectedIndex = 0; // Menyimpan index dari tab yang dipilih
+
+  void _addToCart(Map<String, dynamic> product) {
+    setState(() {
+      int existingIndex =
+          cartItems.indexWhere((item) => item['name'] == product['name']);
+      if (existingIndex != -1) {
+        cartItems[existingIndex]['qty'] += 1;
+      } else {
+        cartItems.add({...product, 'qty': 1});
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${product['name']} added to cart'),
+      ),
+    );
+  }
+
+  void _onNavItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        // Halaman HomePage (Sudah di sini, tidak perlu navigasi)
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CartPage(cartItems: cartItems),
+          ),
+        );
+        break;
+      case 2:
+        // Halaman Produk (Belum ada, tambahkan jika diperlukan)
+        break;
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HistoryPage(),
+          ),
+        );
+        break;
+      case 4:
+        // Halaman Profil (Belum ada, tambahkan jika diperlukan)
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +75,6 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: null,
         title: Row(
           children: [
             const Padding(
@@ -150,23 +203,7 @@ class _HomePageState extends State<HomePage> {
                           subtitle: Text(formattedPrice),
                           trailing: IconButton(
                             icon: const Icon(Icons.add_shopping_cart),
-                            onPressed: () {
-                              setState(() {
-                                cartItems.add({
-                                  'name': data['name'] ?? 'No Name',
-                                  'price': data['price'] ?? 0,
-                                  'imageUrl': data['imageUrl'] ?? '',
-                                  'qty': 1,
-                                });
-                              });
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content:
-                                      Text('${data['name']} added to cart'),
-                                ),
-                              );
-                            },
+                            onPressed: () => _addToCart(data),
                           ),
                         ),
                       );
@@ -189,25 +226,8 @@ class _HomePageState extends State<HomePage> {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         selectedItemColor: Colors.green,
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
-              );
-              break;
-            case 1:
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CartPage(cartItems: cartItems),
-                ),
-              );
-              break;
-          }
-        },
+        currentIndex: _selectedIndex,
+        onTap: _onNavItemTapped,
       ),
     );
   }

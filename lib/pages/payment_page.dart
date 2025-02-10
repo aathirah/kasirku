@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:kasirku/pages/home_page.dart';
-import 'package:kasirku/pages/cart_page.dart';
-import 'package:kasirku/pages/product_page.dart';
-import 'package:kasirku/pages/profile_page.dart';
-import 'package:kasirku/pages/history_page.dart';
-import 'package:kasirku/pages/success_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'success_page.dart';
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key});
+  final List<Map<String, dynamic>> cartItems;
+  final int totalPrice;
+
+  const PaymentPage(
+      {super.key, required this.cartItems, required this.totalPrice});
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -16,256 +17,175 @@ class PaymentPage extends StatefulWidget {
 class _PaymentPageState extends State<PaymentPage> {
   String selectedMethod = 'Tunai'; // Default metode pembayaran
 
-  void selectPaymentMethod(String method) {
-    setState(() {
-      selectedMethod = method;
-    });
+  Future<void> _processPayment() async {
+    if (widget.cartItems.isEmpty) return;
 
-    if (method == 'Qris') {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('QRIS Payment'),
+    try {
+      await FirebaseFirestore.instance.collection('transactions').add({
+        'items': widget.cartItems,
+        'total': widget.totalPrice,
+        'paymentMethod': selectedMethod,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const SuccessPage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memproses pembayaran: $e')),
+      );
+    }
+  }
+
+  void _showQrisDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.all(20),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Scan QR code below to pay:'),
-              const SizedBox(height: 16),
+              const Text(
+                "QRIS Payment",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Scan QR code below to pay:",
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
               Image.asset(
-                'assets/qris.png', // Gambar QRIS yang Anda tambahkan di folder assets
+                'assets/qris.png', // Pastikan gambar ini ada di folder assets
                 width: 200,
                 height: 200,
               ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Close",
+                  style: TextStyle(color: Colors.purple, fontSize: 16),
+                ),
+              ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
-    }
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Payment',
-          style: TextStyle(color: Colors.black),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
+      appBar: AppBar(title: const Text('Pembayaran')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Metode Pembayaran',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
+            const Text('Metode Pembayaran',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                PaymentMethodButton(
-                  label: 'Tunai',
-                  isSelected: selectedMethod == 'Tunai',
-                  onTap: () => selectPaymentMethod('Tunai'),
-                ),
-                const SizedBox(width: 16), // Jarak antar tombol
-                PaymentMethodButton(
-                  label: 'Qris',
-                  isSelected: selectedMethod == 'Qris',
-                  onTap: () => selectPaymentMethod('Qris'),
-                ),
+                _paymentMethodButton('Tunai'),
+                _paymentMethodButton('Qris'),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+
+            // Jika metode pembayaran adalah QRIS, tampilkan tombol untuk membuka dialog
+            if (selectedMethod == 'Qris')
+              Center(
+                child: ElevatedButton(
+                  onPressed: _showQrisDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                  ),
+                  child: const Text(
+                    'Tampilkan QRIS',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 16),
-            const PaymentSummaryRow(label: 'Sub total', value: 'Rp 639000'),
-            const SizedBox(height: 8),
-            const PaymentSummaryRow(label: 'Tax', value: 'Rp 890'),
-            const Divider(height: 32, thickness: 1),
-            const PaymentSummaryRow(
-              label: 'Total',
-              value: 'Rp 639.890',
-              isBold: true,
-            ),
+
+            _summaryRow('Sub total',
+                'Rp ${NumberFormat("#,###", "id_ID").format(widget.totalPrice)}'),
+            _summaryRow('Tax (10%)',
+                'Rp ${NumberFormat("#,###", "id_ID").format((widget.totalPrice * 0.1).toInt())}'),
+            const Divider(),
+            _summaryRow('Total',
+                'Rp ${NumberFormat("#,###", "id_ID").format((widget.totalPrice * 1.1).toInt())}',
+                isBold: true),
             const Spacer(),
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const SuccessPage()),
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Metode pembayaran: $selectedMethod'),
-                    ),
-                  );
-                },
+                onPressed: _processPayment,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Bayar',
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 16)),
+                child: const Text('Bayar',
+                    style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: const BottomNavBar(),
     );
   }
-}
 
-class PaymentMethodButton extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const PaymentMethodButton({
-    super.key,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _paymentMethodButton(String method) {
     return Expanded(
       child: GestureDetector(
-        onTap: onTap,
+        onTap: () {
+          setState(() => selectedMethod = method);
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.green : Colors.grey.shade300,
+            color:
+                selectedMethod == method ? Colors.green : Colors.grey.shade300,
             borderRadius: BorderRadius.circular(8),
-            border: isSelected
-                ? Border.all(color: Colors.green, width: 2)
-                : Border.all(color: Colors.grey.shade400),
           ),
           child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: Text(method,
+                style: TextStyle(
+                    color:
+                        selectedMethod == method ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold)),
           ),
         ),
       ),
     );
   }
-}
 
-class PaymentSummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isBold;
-
-  const PaymentSummaryRow({
-    super.key,
-    required this.label,
-    required this.value,
-    this.isBold = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _summaryRow(String label, String value, {bool isBold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class BottomNavBar extends StatelessWidget {
-  const BottomNavBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.green,
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            // Beranda
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomePage()),
-            );
-            break;
-          case 1:
-            // Keranjang
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const CartPage(
-                        cartItems: [],
-                      )),
-            );
-            break;
-          case 2:
-            // Produk
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const ProductPage()),
-            );
-            break;
-          case 3:
-            // Riwayat
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
-            );
-            break;
-          case 4:
-            // Profile
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const ProfilePage()),
-            );
-            break;
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Beranda'),
-        BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_cart), label: 'Keranjang'),
-        BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Produk'),
-        BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Riwayat'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        Text(label,
+            style: TextStyle(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+        Text(value,
+            style: TextStyle(
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
       ],
     );
   }
